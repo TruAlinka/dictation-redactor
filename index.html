@@ -2,381 +2,347 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>Интерактивный диктант + редактор</title>
+  <title>Редактор диктанта (экспорт для Genially)</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <style id="dynamic-style"></style>
   <style>
-    body { background: #f7faff; font-family: 'Segoe UI',sans-serif; color:#232056; margin:0; }
-    .container { max-width:750px; margin: 34px auto 30px auto; padding:24px 0 12px 0;}
-    .editor-panel { background:#fff3; border:1.5px solid #e2e5f0; border-radius:10px; margin-bottom:24px;
-      padding:18px 22px 12px 22px; }
-    .editor-panel input, .editor-panel textarea, .editor-panel select {margin: 2px 0 10px 0;}
-    .editor-panel label {margin-right:8px;}
-    .editor-section {margin-bottom:18px;}
-    .editor-panel th, .editor-panel td {padding:3px 5px;text-align:left;}
-    .editor-panel th {font-weight:500;}
-    .editor-table {max-width:100%;border-collapse:collapse;}
-    .editor-table td, .editor-table th {border: 1px solid #e5e2f1;}
-    .editor-table input, .editor-table textarea {width:95%;}
-    .editor-button {padding:4px 7px;border-radius:7px;border:1px solid #ccc;background:#eee;font-size:13px; cursor:pointer;}
-    .editor-table img {max-width:48px;}
-    .switch {margin-right:6px;}
-    #toggle-editor {margin-bottom: 9px; padding:2px 16px;}
-    .sr {color:#888;font-size:12px;font-weight:400;}
-    @media(max-width:700px){.container{max-width:99vw;padding:0}}
+    body {font-family:sans-serif; margin:40px auto; max-width:700px;}
+    textarea {width:94%; height:40px;}
+    table {width:100%; border-collapse:collapse;margin-top:14px;}
+    th, td {padding:6px 8px; border:1px solid #d4dae8; vertical-align:top;}
+    input[type='text'], select {width:100%;box-sizing:border-box;}
+    .optrow {margin-top:16px;}
+    button {font-size:17px;padding:8px 17px;border-radius:7px;border:1.5px solid #ccc;background:#f2f3fa;margin:7px 0;}
+    .preview {border:1px solid #e7e7e7;background:#fafaff;margin:18px 0;padding:5px;}
+    .center {text-align:center;}
   </style>
 </head>
 <body>
-<div class="container">
-  <button id="toggle-editor" class="editor-button">Редактор: открыть</button>
-  <form id="editor" class="editor-panel" style="display:none">
-    <div class="editor-section">
-      <label>Цвет интерфейса:
-        <input type="color" id="bg-color" value="#f7faff">
-        или <label><input type="checkbox" id="transparent-bg" class="switch">Прозрачный фон</label>
-      </label>
-    </div>
-    <div class="editor-section">
-      <b>Фразы обратной связи и кнопок:</b><br>
-      <textarea id="feedback-phrases" rows="3" style="width:95%"></textarea>
-      <span class="sr">Каждая фраза с новой строки. Используется для шкалы прогресса и кнопок интерфейса.</span>
-    </div>
-    <div class="editor-section">
-      <b>Задания:</b><br>
-      <table class="editor-table" id="tasks-table">
-        <thead>
+  <h2>Редактор интерактивного диктанта</h2>
+  
+  <div class="optrow">
+    <label>Цвет фона (background): <input type="color" id="bgColor" value="#f7faff"></label>
+    <label style="margin-left:16px;">
+      <input type="checkbox" id="bgTransparent"> Прозрачный фон
+    </label>
+  </div>
+  
+  <div class="optrow">
+    <label>Фразы шкалы прогресса и обратной связи (по одной в строке):<br>
+      <textarea id="feedbacks">Ещё всё впереди!
+Хороший старт!
+Ты почти у цели!
+Великолепно! Всё получилось!</textarea>
+    </label>
+  </div>
+  
+  <div class="optrow">
+    <b>Задания (русский и/или английский):</b> <button type="button" onclick="addTaskRow()">Добавить задание</button>
+    <table>
+      <thead>
         <tr>
-          <th>Яз</th><th>Картинка (url) или дефиниция</th><th>Ответ</th><th>Фидбек</th><th>Удалить</th>
+          <th>Язык</th>
+          <th>Картинка-URL<br><span style="font-size:13px;opacity:.8;">(или пусто)</span></th>
+          <th>Дефиниция (описание)<br><span style="font-size:13px;opacity:.8;">(или пусто)</span></th>
+          <th>Ответ</th>
+          <th>Фидбек</th>
+          <th></th>
         </tr>
-        </thead>
-        <tbody id="tasks-tbody"></tbody>
-      </table>
-      <button type="button" id="add-task-btn" class="editor-button">+ Добавить</button>
-    </div>
-    <button type="submit" class="editor-button" style="margin-top:12px;">Сохранить и закрыть редактор</button>
-    <span class="sr" style="margin-left:18px;color:#477">Все изменения сразу появятся ниже в игре</span>
-  </form>
-
-  <!-- Ниже рендерится сама игра! -->
-  <div id="gamezone"></div>
-</div>
+      </thead>
+      <tbody id="tasksTbody"></tbody>
+    </table>
+  </div>
+  
+  <div class="optrow center">
+    <button type="button" onclick="generateGameIframe()">Получить код для вставки/iframe</button>
+  </div>
+  
+  <div id="result" class="preview"></div>
+  
 <script>
-//////////////////////////////////////////////////////////////////
-// ==== 1. ДАННЫЕ ПО УМОЛЧАНИЮ ====
-const DEFAULT_DATA = {
-  bgColor: "#f7faff",
-  transparent: false,
-  // Общие фразы (например шкала прогресса/кнопки/описания уровней и т.п.)
-  // ["ещё всё впереди!", "хороший старт!", ...]
-  feedbackPhrases: [
-    'Ещё всё впереди!', 'Хороший старт!', 'Ты почти у цели!', 'Великолепно! Всё получилось!'
-  ],
-  // Массив заданий (можно изменять)
-  tasks: [
-    {id:1, language:"ru", type:"image", image:"https://www.kindpng.com/picc/m/21-214439_cat-png-image-cartoon-cat-png-transparent-png.png", definition:"", answer:"кот", feedback:"Верно! 🐾"},
-    {id:2, language:"ru", type:"definition", image:"", definition:"Маленькое пушистое домашнее животное, мурлычет.", answer:"кот", feedback:"Молодец!"},
-    {id:3, language:"en", type:"image", image:"https://static.vecteezy.com/system/resources/previews/021/548/122/original/cute-cartoon-dog-clipart-element-png.png", definition:"", answer:"dog", feedback:"Good!"},
-    {id:4, language:"en", type:"definition", image:"", definition:"A small, furry, domesticated animal that barks.", answer:"dog", feedback:"Nice!"},
-  ]
-};
-// ====== Работа с localStorage и перевод массива ======
-function saveGameData(data) {
-  localStorage.setItem("dictationGameData", JSON.stringify(data));
-}
-function loadGameData() {
-  const dat = localStorage.getItem("dictationGameData");
-  try { return dat? JSON.parse(dat) : JSON.parse(JSON.stringify(DEFAULT_DATA)); }
-  catch{ return JSON.parse(JSON.stringify(DEFAULT_DATA)); }
-}
+// Стартовые задания (1 ru+1 en)
+const DEFAULT_TASKS = [
+  {lang: "ru", image: "https://www.kindpng.com/picc/m/21-214439_cat-png-image-cartoon-cat-png-transparent-png.png", definition: "", answer:"кот", feedback:"Правильно!"},
+  {lang: "en", image: "", definition: "Small pet, meows.", answer: "cat", feedback:"Good!"}
+];
 
-// ==== 2. БЛОК РЕДАКТОРА ====
-let editData = loadGameData();
-function renderEditor() {
-  // Цвет
-  document.getElementById("bg-color").value = editData.bgColor || "#f7faff";
-  document.getElementById("transparent-bg").checked = editData.transparent||false;
-  // Фразы
-  document.getElementById("feedback-phrases").value = (editData.feedbackPhrases||[]).join("\n");
-  // Задания
-  const tbody = document.getElementById("tasks-tbody");
-  tbody.innerHTML = '';
-  (editData.tasks||[]).forEach((z,i)=>{
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>
-        <select class="task-lang">
-          <option value="ru" ${z.language=="ru"?"selected":""}>RU</option>
-          <option value="en" ${z.language=="en"?"selected":""}>EN</option>
-        </select>
-      </td>
-      <td>
-        <input type="text" class="task-img" placeholder="URL картинки" value="${z.image.replace(/"/g,'&quot;')}"><br>
-        <textarea class="task-def" placeholder="или дефиниция">${z.definition||''}</textarea>
-      </td>
-      <td><input type="text" class="task-answer" value="${z.answer||''}" style="width:70px"></td>
-      <td><input type="text" class="task-feedback" value="${z.feedback||''}" style="width:105px"></td>
-      <td><button type="button" class="editor-button task-del" data-n="${i}">удалить</button></td>
+function fillTableFromArray(arr) {
+  let T = document.getElementById('tasksTbody');
+  T.innerHTML = '';
+  for (let i = 0; i < arr.length; ++i) {
+    let row = document.createElement('tr');
+    row.innerHTML = `
+      <td><select>
+        <option value="ru" ${arr[i].lang==="ru"?"selected":""}>ru</option>
+        <option value="en" ${arr[i].lang==="en"?"selected":""}>en</option>
+      </select></td>
+      <td><input type="text" value="${arr[i].image??""}" placeholder="URL"></td>
+      <td><textarea rows="2">${arr[i].definition??""}</textarea></td>
+      <td><input type="text" value="${arr[i].answer??""}"></td>
+      <td><input type="text" value="${arr[i].feedback??""}"></td>
+      <td><button type="button" onclick="this.parentNode.parentNode.remove();">✕</button></td>
     `;
-    tbody.appendChild(tr);
-  });
-  // Слушатели на удаление, выбор языка, картинки и пр.
-  Array.from(tbody.querySelectorAll('.task-del')).forEach(btn=>
-    btn.onclick=()=>{
-      editData.tasks.splice(+btn.getAttribute("data-n"),1); renderEditor(); }
-  );
-}
-document.getElementById("add-task-btn").onclick=()=>{
-  editData.tasks = editData.tasks || [];
-  const newid = Date.now()%100000+Math.floor(Math.random()*1000);
-  editData.tasks.push({id:newid,language:"ru",type:"image",image:"",definition:"",answer:"",feedback:""});
-  renderEditor();
-};
-
-// ==== 3. СОХРАНЕНИЕ И ПРИМЕНЕНИЕ ====
-document.getElementById("editor").onsubmit=function(e){
-  e.preventDefault();
-  // Обновить цвет
-  editData.bgColor = document.getElementById("bg-color").value;
-  editData.transparent = document.getElementById("transparent-bg").checked;
-  // Фразы фидбека
-  editData.feedbackPhrases = document.getElementById("feedback-phrases").value.split("\n").map(s=>s.trim()).filter(s=>s);
-  // Задания
-  const tb = document.getElementById("tasks-tbody");
-  editData.tasks = [];
-  for(let tr of tb.children) {
-    const cells = tr.children;
-    const lang = cells[0].querySelector('select').value;
-    const img = cells[1].querySelector('.task-img').value.trim();
-    const def = cells[1].querySelector('.task-def').value.trim();
-    const type = img ? "image" : "definition";
-    const answer = cells[2].querySelector('.task-answer').value.trim();
-    const feedback = cells[3].querySelector('.task-feedback').value.trim();
-    if(!(img||def)||!answer) continue; // пропуск пустых
-    editData.tasks.push({
-      id: Date.now()+Math.random(),
-      language: lang,
-      type, image: img, definition: def,
-      answer, feedback
-    });
+    T.appendChild(row);
   }
-  // Сохраняем
-  saveGameData(editData);
-  // Закрыть и обновить игру
-  document.getElementById("editor").style.display = "none";
-  document.getElementById("toggle-editor").textContent = "Редактор: открыть";
-  renderGame();
-  return false;
-};
-document.getElementById("toggle-editor").onclick=function(){
-  const f = document.getElementById("editor");
-  f.style.display = f.style.display === "block" ? "none" : "block";
-  this.textContent = f.style.display === "block" ? "Редактор: закрыть" : "Редактор: открыть";
-  if(f.style.display === "block") renderEditor();
-};
-// Автоматически сохранять цвет при смене color/transparent
-document.getElementById("bg-color").oninput = document.getElementById("transparent-bg").oninput=function(){
-  editData.bgColor = document.getElementById("bg-color").value;
-  editData.transparent = document.getElementById("transparent-bg").checked;
-  renderGame();
 }
-
-// ==== 4. РЕНДЕР ИГРЫ ====
-function renderGame() {
-  // Применить цветовую схему
-  const st = document.getElementById("dynamic-style");
-  if(editData.transparent)
-    st.innerHTML = 'body,.container{background:transparent !important;}';
-  else
-    st.innerHTML = `body,.container{background:${editData.bgColor} !important;}`
-
-  // Собираем игру из свежих данных editData
-  // Используем тот же код, что и раньше, только инлайним всё по месту
-  document.getElementById("gamezone").innerHTML = '';
-  let gameElem = document.createElement('div');
-  gameElem.innerHTML = `
-    <div id="level-select"></div>
-    <div id="main-page"></div>
-    <div id="progress-bar">
-      <label>Отметь свой прогресс:
-        <input type="range" id="progress-range" min="0" max="${editData.tasks.length}" value="0">
-      </label>
-      <span id="progress-feedback"></span>
-    </div>
-    <div id="task-modal"></div>
+function addTaskRow() {
+  let T = document.getElementById('tasksTbody');
+  let row = document.createElement('tr');
+  row.innerHTML = `<td><select><option value="ru">ru</option><option value="en">en</option></select></td>
+  <td><input type="text" value="" placeholder="URL"></td>
+  <td><textarea rows="2"></textarea></td>
+  <td><input type="text" value=""></td>
+  <td><input type="text" value=""></td>
+  <td><button type="button" onclick="this.parentNode.parentNode.remove();">✕</button></td>`
+  T.appendChild(row);
+}
+window.onload = ()=>{ fillTableFromArray(DEFAULT_TASKS); };
+// ===== Генерация JSON настроек ====
+function collectConfig() {
+  let bg = document.getElementById('bgColor').value;
+  let transparent = document.getElementById('bgTransparent').checked;
+  let feedbacks = document.getElementById('feedbacks').value.split('\n').map(v=>v.trim()).filter(v=>v);
+  let tasks = [];
+  let T = document.getElementById('tasksTbody');
+  for (let tr of T.children) {
+    let lang = tr.children[0].querySelector("select").value;
+    let img = tr.children[1].querySelector("input").value.trim();
+    let def = tr.children[2].querySelector("textarea").value.trim();
+    let ans = tr.children[3].querySelector("input").value.trim();
+    let fb  = tr.children[4].querySelector("input").value.trim();
+    if ((!img && !def) || !ans) continue;
+    tasks.push({lang: lang, image: img, definition: def, answer: ans, feedback: fb});
+  }
+  return {bg, transparent, feedbacks, tasks};
+}
+// ===== Генерация кода IFRAME =====
+function generateGameIframe() {
+  let config = collectConfig();
+  let blob = new Blob([buildGameHTML(config)], {type:"text/html"});
+  let url = URL.createObjectURL(blob);
+  let code = `<iframe src="${url}" width="800" height="700" style="border:1px solid #bbb;border-radius:16px;" allow="autoplay"></iframe>
+  <br><small>Этот iframe вставьте на Genially или отправьте ученикам.</small>
+  <br><a href="${url}" target="_blank" rel="noopener">Открыть игру отдельной страницей</a> | <a href="${url}" download="dictation_game.html">Скачать чистый HTML</a>
   `;
-  document.getElementById("gamezone").appendChild(gameElem);
-
-  // Всё дальше — копия игрового фрагмента с редактором
-  let doneTasks = {};
-  let currentLang = "ru";
-  let currentLevel = null;
-  function renderLevelSelect() {
-    const div = document.getElementById('level-select');
-    div.innerHTML = `<div style="margin-bottom:12px;">
-      <span style="font-weight:500;">Выбери уровень:</span>
-      <button id="level-easy" class="${currentLevel==='easy'?'selected':''}">Лёгкий</button>
-      <button id="level-hard" class="${currentLevel==='hard'?'selected':''}">Сложный</button>
-      </div>
-      <div style="font-size:15px;color:#869;">🟢 <b>Лёгкий</b>: переставить буквы<br>
-      🔵 <b>Сложный</b>: вписать слово полностью</div>
-      <div style="margin-top:9px;">
-        <label>Язык:
-          <select id="lang-switch">
-            <option value="ru">Русский</option>
-            <option value="en">English</option>
-          </select>
-        </label>
-      </div>
-    `;
-    document.getElementById('level-easy').onclick = ()=>{currentLevel='easy'; renderLevelSelect(); renderMainPage();}
-    document.getElementById('level-hard').onclick = ()=>{currentLevel='hard'; renderLevelSelect(); renderMainPage();}
-    document.getElementById('lang-switch').value = currentLang;
-    document.getElementById('lang-switch').onchange = e=>{
-      currentLang = e.target.value;
-      doneTasks={}; currentLevel=null; renderLevelSelect(); renderMainPage();
-    };
-  }
-  function renderMainPage() {
-    if (!currentLevel) { document.getElementById('main-page').innerHTML = ""; return; }
-    const main = document.getElementById('main-page');
-    main.innerHTML = '';
-    (editData.tasks||[]).filter(t=>t.language===currentLang).forEach(task=>{
-      const card = document.createElement('div');
-      card.className = 'task-card';
-      if (doneTasks[task.id]) {
-        card.setAttribute('disabled', '');
-        const success = document.createElement('div');
-        success.className = 'success-tag';
-        if (task.feedback.endsWith('.gif') || task.feedback.endsWith('.png'))
-          success.innerHTML = `<img src="${task.feedback}" alt="success" style="width:38px;">`;
-        else success.innerHTML = `<span>${task.feedback}</span>`;
-        card.appendChild(success);
-      }
-      if (task.type === 'image')
-        card.innerHTML += `<div><img src="${task.image}" alt="task" style="width:70px;"></div>`;
-      else card.innerHTML += `<div style="margin-top:18px;">${task.definition}</div>`;
-      card.onclick = ()=>{if(!doneTasks[task.id]) openTask(task);}
-      main.appendChild(card);
-    });
-  }
-  function openTask(task) {
-    let modal = document.getElementById('task-modal');
-    modal.style.display = 'flex';
-    let taskModal = document.createElement('div');
-    if(currentLevel==='easy'){
-      let shuffled = shuffleLetters(task.answer);
-      taskModal.innerHTML = `<div>Собери слово:</div>
-      <div class="letters-box" id="letters-box">${
-        shuffled.map((letter, i) =>
-          `<span class="draggable-letter" draggable="true" data-index="${i}">${letter}</span>`
-        ).join('')
-      }</div>
-      <button onclick="checkLettersAnswer()" style="margin-bottom:15px;">Проверить</button>
-      <div id="feedback"></div>
-      <button onclick="closeTask()" style="margin-top:12px;">Назад</button>
-      `;
-      modal.innerHTML = ''; modal.appendChild(taskModal); enableDragAndDropTouch();
-    }else{
-      taskModal.innerHTML = `<div>Введи слово:</div>
-        <input type="text" id="text-input" autocomplete="off" style="font-size:22px;padding:4px;text-align:center;">
-        <button onclick="checkTextInput()" style="margin-left:10px;">Проверить</button>
-        <div id="feedback"></div>
-        <button onclick="closeTask()" style="display:block;margin:18px auto 0;">Назад</button>
-      `;
-      modal.innerHTML = ''; modal.appendChild(taskModal);
-      setTimeout(()=>document.getElementById('text-input').focus(), 100);
-    }
-    function enableDragAndDropTouch() {
-      let dragged = null;
-      const box = document.getElementById('letters-box');
-      const letters = box.querySelectorAll('.draggable-letter');
-      letters.forEach(l=>{
-        l.addEventListener('dragstart',function(){ dragged=this; setTimeout(()=>this.style.opacity = "0.25", 0);});
-        l.addEventListener('dragend',function(){ this.style.opacity="1"; dragged=null; letters.forEach(el=>el.classList.remove('drag-over'));});
-        l.addEventListener('dragover',e=>{ e.preventDefault(); });
-        l.addEventListener('dragenter',function(){ this.classList.add('drag-over');});
-        l.addEventListener('dragleave',function(){ this.classList.remove('drag-over');});
-        l.addEventListener('drop',function(e){
-          e.preventDefault();
-          if(!dragged||dragged===this)return;
-          const all=Array.from(box.children);
-          const di=all.indexOf(dragged),dri=all.indexOf(this);
-          if(di<dri){box.insertBefore(dragged,this.nextSibling);}
-          else{box.insertBefore(dragged,this);}
-          letters.forEach(el=>el.classList.remove('drag-over'));
-        });
-      });
-      let firstTap=null;
-      box.classList.remove('touch-mode');
-      if ('ontouchstart' in window) {
-        box.classList.add('touch-mode');
-        letters.forEach(l=>l.ontouchend=(e)=>{
-          e.preventDefault();
-          if (firstTap===null) { firstTap = l; l.style.background = "#ffe683"; }
-          else if (firstTap!==l) {swapElems(firstTap,l); firstTap.style.background = ""; firstTap=null;}
-          else{firstTap.style.background = ""; firstTap = null;}
-        });
-        document.body.ontouchstart=(e)=>{
-          if(firstTap&&!e.target.classList.contains('draggable-letter')){firstTap.style.background="";firstTap=null;}
-        }
-      }
-    }
-    function swapElems(a,b){
-      var ap = a.parentNode, asib = a.nextSibling;
-      if (asib === b) { ap.insertBefore(b,a); }
-      else { ap.insertBefore(a,b); }
-    }
-    function checkLettersAnswer() {
-      const letters = Array.from(document.querySelectorAll('.draggable-letter')).map(el=>el.innerText).join('');
-      if (letters === task.answer) showPositiveFeedback();
-    }
-    function checkTextInput() {
-      const input = document.getElementById('text-input').value.trim();
-      if(input.toLowerCase() === task.answer.toLowerCase()) showPositiveFeedback();
-    }
-    function showPositiveFeedback() {
-      const area = document.getElementById('feedback');
-      area.innerHTML = (task.feedback.endsWith('.gif')||task.feedback.endsWith('.png')) ?
-        `<img src="${task.feedback}" alt="success" style="width:85px;">` :
-        `<span style="font-size:22px;color:#208a4e;font-weight:bold;">${task.feedback}</span><br>`;
-      area.innerHTML += `<button onclick="finishTask()" style="margin:16px auto 0;">На главную</button>`;
-    }
-    window.closeTask = function(){
-      document.getElementById('task-modal').style.display = 'none';
-      renderMainPage();
-    }
-    window.finishTask = function(){
-      doneTasks[task.id]=true;
-      closeTask();
-      updateProgressRange();
-    }
-    window.checkLettersAnswer=checkLettersAnswer;
-    window.checkTextInput=checkTextInput;
-  }
-  function shuffleLetters(word) {
-    let arr = word.split('');
-    if(arr.length<=3) return arr;
-    let shuffled;
-    do { shuffled = arr.slice().sort(()=>Math.random()-0.5); }
-    while(shuffled.join('')===word);
-    return shuffled;
-  }
-  function updateProgressRange() {
-    const range = document.getElementById("progress-range"),
-          feedback = document.getElementById("progress-feedback"),
-          k = (editData.tasks||[]).filter(t=>t.language===currentLang).length,
-          d = (editData.tasks||[]).filter(t=>t.language===currentLang && doneTasks[t.id]).length;
-    range.max=k;range.value=d;
-    let arr = editData.feedbackPhrases||DEFAULT_DATA.feedbackPhrases,
-        idx = Math.min(d, arr.length-1);
-    feedback.textContent = arr[idx];
-  }
-  document.getElementById("progress-range").addEventListener('input',updateProgressRange);
-  renderLevelSelect(); renderMainPage(); updateProgressRange();
+  document.getElementById('result').innerHTML = code;
 }
-renderGame();
-// ========= КОНЕЦ ==============
-//////////////////////////////////////////////////////////////////
+
+// ======= ПРОСТОЙ "ГЕНЕРАТОР ИГРЫ" (вся игра в 1 html) =======
+function buildGameHTML(config) {
+return `<!DOCTYPE html>
+<html lang="ru">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dictation Game</title>
+<style>
+body{margin:0;font-family:sans-serif;${config.transparent?"background:transparent !important;":"background:"+config.bg+" !important;"}}
+.container{max-width:740px;margin:36px auto 28px auto;padding:18px 0;}
+#main-page{display:flex;flex-wrap:wrap;gap:24px;margin-bottom:26px;justify-content:center;}
+.task-card{background:#fafaff;border-radius:14px;box-shadow:0 1px 8px #d9dbe7;padding:18px;text-align:center;width:144px;min-height:130px;cursor:pointer;position:relative;font-size:17px;transition:opacity .4s;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:150px;}
+.task-card[disabled]{pointer-events:none;opacity:.53;}
+.success-tag{position:absolute;top:8px;left:5px;background:#e0ffd7ee;color:#25702c;font-weight:bold;padding:3px 10px;border-radius:11px;z-index:10;font-size:16px;box-shadow:0 1px 4px #c1e2c1;}
+#task-modal{position:fixed;left:0;top:0;right:0;bottom:0;z-index:999;background:rgba(20,25,42,0.43);display:none;align-items:center;justify-content:center;}
+#task-modal>div{background:#fff;border-radius:14px;min-width:320px;min-height:160px;padding:38px 30px 24px 30px;position:relative;text-align:center;box-shadow:0 2px 24px #b8aaff54;}
+.letters-box{min-height:36px;margin:16px 0 22px 0;}
+.draggable-letter{display:inline-block;background:#e3e6f8;color:#272659;font-size:23px;padding:7px 14px;margin:4px;border-radius:8px;cursor:grab;font-weight:bold;box-shadow:0 0 3px #acaaff60;user-select:none;transition:background .23s;}
+.draggable-letter.drag-over{background:#ffea80;border:2px solid #e0ad00;}
+.letters-box.touch-mode .draggable-letter{cursor:pointer;}
+#progress-bar{margin:22px 0 18px 0;text-align:center;}
+#progress-feedback{margin-left:15px;color:#14914c;font-weight:500;}
+#level-select{margin:0 0 18px 0;text-align:center;}
+#level-select button{margin:0 8px;padding:6px 14px;border-radius:8px;border:1.5px solid #bcc1de;background:#fff;font-size:17px;cursor:pointer;}
+#level-select .selected,#level-select button:hover{background:#e3e6fa;}
+@media(max-width:700px){.container{max-width:99vw;padding:0;}}
+@media(max-width:680px){#task-modal>div{min-width:0;width:92vw;}.task-card{width:46vw;min-width:116px;}}
+</style>
+<body>
+<div class="container">
+  <div id="level-select"></div>
+  <div id="main-page"></div>
+  <div id="progress-bar">
+    <label>Отметь свой прогресс:
+      <input type="range" id="progress-range" min="0" max="${config.tasks.length}" value="0">
+    </label>
+    <span id="progress-feedback"></span>
+  </div>
+</div>
+<div id="task-modal"></div>
+<script>
+const feedbackPhrases = ${JSON.stringify(config.feedbacks)};
+const dictationTasks = ${JSON.stringify(config.tasks.map((z,i)=>({
+  id: i+1,
+  language: z.lang,
+  type: z.image ? "image":"definition",
+  image: z.image,
+  definition: z.definition,
+  answer: z.answer,
+  feedback: z.feedback
+})))};
+
+let doneTasks = {};
+let currentLang = 'ru';
+let currentLevel = null;
+function renderLevelSelect() {
+  const div = document.getElementById('level-select');
+  div.innerHTML = \`<div style="margin-bottom:12px;">
+    <span style="font-weight:500;">Выбери уровень:</span>
+    <button id="level-easy" class="\${currentLevel==='easy'?'selected':''}">Лёгкий</button>
+    <button id="level-hard" class="\${currentLevel==='hard'?'selected':''}">Сложный</button>
+    </div>
+    <div style="font-size:15px;color:#869;">🟢 <b>Лёгкий</b>: переставить буквы<br>
+    🔵 <b>Сложный</b>: вписать слово полностью</div>
+    <div style="margin-top:9px;">
+      <label>Язык:
+        <select id="lang-switch">
+          <option value="ru">Русский</option>
+          <option value="en">English</option>
+        </select>
+      </label>
+    </div>
+  \`;
+  document.getElementById('level-easy').onclick = ()=>{currentLevel='easy';renderLevelSelect();renderMainPage();}
+  document.getElementById('level-hard').onclick = ()=>{currentLevel='hard';renderLevelSelect();renderMainPage();}
+  document.getElementById('lang-switch').value = currentLang;
+  document.getElementById('lang-switch').onchange = e=>{
+    currentLang = e.target.value;
+    doneTasks={}; currentLevel=null; renderLevelSelect(); renderMainPage();
+  };
+}
+function renderMainPage() {
+  if (!currentLevel) { document.getElementById('main-page').innerHTML = ""; return; }
+  const main = document.getElementById('main-page');
+  main.innerHTML = '';
+  dictationTasks.filter(t=>t.language===currentLang).forEach(task=>{
+    const card = document.createElement('div');
+    card.className = 'task-card';
+    if (doneTasks[task.id]) {
+      card.setAttribute('disabled', '');
+      const success = document.createElement('div');success.className = 'success-tag';
+      if (task.feedback.endsWith('.gif') || task.feedback.endsWith('.png'))
+        success.innerHTML = '<img src="'+task.feedback+'" alt="success" style="width:38px;">';
+      else success.innerHTML = '<span>'+task.feedback+'</span>';
+      card.appendChild(success);
+    }
+    if (task.type === 'image')
+      card.innerHTML += '<div><img src="'+task.image+'" alt="task" style="width:70px;"></div>';
+    else card.innerHTML += '<div style="margin-top:18px;">'+task.definition+'</div>';
+    card.onclick = ()=>{if(!doneTasks[task.id]) openTask(task);}
+    main.appendChild(card);
+  });
+}
+function openTask(task) {
+  let modal = document.getElementById('task-modal');
+  modal.style.display = 'flex';
+  let taskModal = document.createElement('div');
+  if(currentLevel==='easy'){
+    let shuffled = shuffleLetters(task.answer);
+    taskModal.innerHTML = '<div>Собери слово:</div>\
+    <div class="letters-box" id="letters-box">'+
+      shuffled.map((letter,i)=>
+        '<span class="draggable-letter" draggable="true" data-index="'+i+'">'+letter+'</span>'
+      ).join('')
+    +'</div>\
+    <button onclick="checkLettersAnswer()" style="margin-bottom:15px;">Проверить</button>\
+    <div id="feedback"></div>\
+    <button onclick="closeTask()" style="margin-top:12px;">Назад</button>';
+    modal.innerHTML = ''; modal.appendChild(taskModal); enableDragAndDropTouch();
+  }else{
+    taskModal.innerHTML = '<div>Введи слово:</div>\
+      <input type="text" id="text-input" autocomplete="off" style="font-size:22px;padding:4px;text-align:center;">\
+      <button onclick="checkTextInput()" style="margin-left:10px;">Проверить</button>\
+      <div id="feedback"></div>\
+      <button onclick="closeTask()" style="display:block;margin:18px auto 0;">Назад</button>';
+    modal.innerHTML = ''; modal.appendChild(taskModal);
+    setTimeout(()=>document.getElementById('text-input').focus(), 100);
+  }
+  function enableDragAndDropTouch() {
+    let dragged = null;
+    const box = document.getElementById('letters-box');
+    const letters = box.querySelectorAll('.draggable-letter');
+    letters.forEach(l=>{
+      l.addEventListener('dragstart',function(){ dragged=this;setTimeout(()=>this.style.opacity="0.25",0)});
+      l.addEventListener('dragend',function(){ this.style.opacity="1";dragged=null;letters.forEach(el=>el.classList.remove('drag-over'))});
+      l.addEventListener('dragover',e=>{ e.preventDefault(); });
+      l.addEventListener('dragenter',function(){ this.classList.add('drag-over');});
+      l.addEventListener('dragleave',function(){ this.classList.remove('drag-over');});
+      l.addEventListener('drop',function(e){
+        e.preventDefault();
+        if(!dragged||dragged===this)return;
+        const all=Array.from(box.children);
+        const di=all.indexOf(dragged),dri=all.indexOf(this);
+        if(di<dri){box.insertBefore(dragged,this.nextSibling);}
+        else{box.insertBefore(dragged,this);}
+        letters.forEach(el=>el.classList.remove('drag-over'));
+      });
+    });
+    let firstTap=null;
+    box.classList.remove('touch-mode');
+    if ('ontouchstart' in window) {
+      box.classList.add('touch-mode');
+      letters.forEach(l=>l.ontouchend=(e)=>{
+        e.preventDefault();
+        if (firstTap===null) { firstTap = l; l.style.background = "#ffe683"; }
+        else if (firstTap!==l) {swapElems(firstTap,l); firstTap.style.background = ""; firstTap=null;}
+        else{firstTap.style.background = ""; firstTap = null;}
+      });
+      document.body.ontouchstart=(e)=>{
+        if(firstTap&&!e.target.classList.contains('draggable-letter')){firstTap.style.background="";firstTap=null;}
+      }
+    }
+  }
+  function swapElems(a,b){
+    var ap = a.parentNode, asib = a.nextSibling;
+    if (asib === b) { ap.insertBefore(b,a); }
+    else { ap.insertBefore(a,b); }
+  }
+  function checkLettersAnswer() {
+    const letters = Array.from(document.querySelectorAll('.draggable-letter')).map(el=>el.innerText).join('');
+    if (letters === task.answer) showPositiveFeedback();
+  }
+  function checkTextInput() {
+    const input = document.getElementById('text-input').value.trim();
+    if(input.toLowerCase() === task.answer.toLowerCase()) showPositiveFeedback();
+  }
+  function showPositiveFeedback() {
+    const area = document.getElementById('feedback');
+    area.innerHTML = (task.feedback.endsWith('.gif')||task.feedback.endsWith('.png')) ?
+      '<img src="'+task.feedback+'" alt="success" style="width:85px;">' :
+      '<span style="font-size:22px;color:#208a4e;font-weight:bold;">'+task.feedback+'</span><br>';
+    area.innerHTML += '<button onclick="finishTask()" style="margin:16px auto 0;">На главную</button>';
+  }
+  window.closeTask = function(){
+    document.getElementById('task-modal').style.display = 'none';
+    renderMainPage();
+  }
+  window.finishTask = function(){
+    doneTasks[task.id]=true;
+    closeTask();
+    updateProgressRange();
+  }
+  window.checkLettersAnswer=checkLettersAnswer;
+  window.checkTextInput=checkTextInput;
+}
+function shuffleLetters(word) {
+  let arr = word.split('');
+  if(arr.length<=3) return arr;
+  let shuffled;
+  do { shuffled = arr.slice().sort(()=>Math.random()-0.5); }
+  while(shuffled.join('')===word);
+  return shuffled;
+}
+function updateProgressRange() {
+  const range = document.getElementById("progress-range"),
+        feedback = document.getElementById("progress-feedback"),
+        k = dictationTasks.filter(t=>t.language===currentLang).length,
+        d = dictationTasks.filter(t=>t.language===currentLang && doneTasks[t.id]).length;
+  range.max=k;range.value=d;
+  let arr = feedbackPhrases, idx = Math.min(d, arr.length-1);
+  feedback.textContent = arr[idx];
+}
+document.getElementById("progress-range").addEventListener('input',updateProgressRange);
+renderLevelSelect(); renderMainPage(); updateProgressRange();
+</script>
+</body>
+</html>`;
+}
 </script>
 </body>
 </html>
