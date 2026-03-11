@@ -2,67 +2,69 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>Редактор диктанта (экспорт для Genially)</title>
+  <title>Редактор интерактивного диктанта — экспорт HTML</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <style>
-    body {font-family:sans-serif; margin:40px auto; max-width:700px;}
-    textarea {width:94%; height:40px;}
-    table {width:100%; border-collapse:collapse;margin-top:14px;}
-    th, td {padding:6px 8px; border:1px solid #d4dae8; vertical-align:top;}
-    input[type='text'], select {width:100%;box-sizing:border-box;}
-    .optrow {margin-top:16px;}
-    button {font-size:17px;padding:8px 17px;border-radius:7px;border:1.5px solid #ccc;background:#f2f3fa;margin:7px 0;}
-    .preview {border:1px solid #e7e7e7;background:#fafaff;margin:18px 0;padding:5px;}
+    body {font-family:sans-serif; margin:40px auto; max-width:720px;}
+    textarea, input[type="text"], input[type="number"] {width:96%;}
+    select{width:96%;}
+    table {width:100%; border-collapse:collapse;margin-top:17px;}
+    th, td {padding:7px 9px; border:1px solid #d4dae8; vertical-align:top;}
+    .optrow {margin-top:14px;}
     .center {text-align:center;}
+    .taskrow input[type='text'], .taskrow textarea, .taskrow select {width:97%;font-size:16px;}
+    button {padding:7px 14px; border-radius:7px; background:#f2f3fa; border:1.2px solid #bcc1de; font-size:15px;}
+    .taskrow td {font-size: 15px;}
+    .tablezone {overflow-x:auto;}
+    .gray {color:#888;}
+    .preview {border:1.5px solid #e2e2e2; background:#f8faff; margin:20px 0;padding:7px;}
+    .delbtn {background:#ffeded;}
   </style>
 </head>
 <body>
-  <h2>Редактор интерактивного диктанта</h2>
-  
-  <div class="optrow">
-    <label>Цвет фона (background): <input type="color" id="bgColor" value="#f7faff"></label>
-    <label style="margin-left:16px;">
-      <input type="checkbox" id="bgTransparent"> Прозрачный фон
-    </label>
-  </div>
-  
-  <div class="optrow">
-    <label>Фразы шкалы прогресса и обратной связи (по одной в строке):<br>
-      <textarea id="feedbacks">Ещё всё впереди!
+<h2>Редактор интерактивного диктанта</h2>
+<div class="optrow">
+  <label>Цвет фона: <input type="color" id="bgColor" value="#f7faff"></label>
+  <label style="margin-left:18px;">
+    <input type="checkbox" id="bgTransparent"> Прозрачный фон
+  </label>
+</div>
+<div class="optrow">
+  <label>Фразы обратной связи и прогресса (одна фраза на строку):<br>
+    <textarea id="feedbacks" rows="3">Ещё всё впереди!
 Хороший старт!
 Ты почти у цели!
 Великолепно! Всё получилось!</textarea>
-    </label>
-  </div>
-  
-  <div class="optrow">
-    <b>Задания (русский и/или английский):</b> <button type="button" onclick="addTaskRow()">Добавить задание</button>
-    <table>
-      <thead>
-        <tr>
-          <th>Язык</th>
-          <th>Картинка-URL<br><span style="font-size:13px;opacity:.8;">(или пусто)</span></th>
-          <th>Дефиниция (описание)<br><span style="font-size:13px;opacity:.8;">(или пусто)</span></th>
-          <th>Ответ</th>
-          <th>Фидбек</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody id="tasksTbody"></tbody>
-    </table>
-  </div>
-  
-  <div class="optrow center">
-    <button type="button" onclick="generateGameIframe()">Получить код для вставки/iframe</button>
-  </div>
-  
-  <div id="result" class="preview"></div>
-  
+  </label>
+</div>
+<div class="optrow tablezone">
+  <b>Задания:</b>
+  <button type="button" onclick="addTaskRow()">+ Добавить задание</button>
+  <table>
+    <thead>
+      <tr>
+        <th>Язык</th>
+        <th>Картинка (URL)</th>
+        <th>Дефиниция (описание)</th>
+        <th>Ответ</th>
+        <th>Фидбек</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="tasksTbody"></tbody>
+  </table>
+  <span class="gray">У задания может быть либо картинка (указать URL), либо определение (def), либо и то, и другое.</span>
+</div>
+<br>
+<div class="optrow center">
+  <button type="button" onclick="downloadGameHTML()">Скачать игру (HTML)</button>
+</div>
+<div id="result" class="preview"></div>
+
 <script>
-// Стартовые задания (1 ru+1 en)
-const DEFAULT_TASKS = [
-  {lang: "ru", image: "https://www.kindpng.com/picc/m/21-214439_cat-png-image-cartoon-cat-png-transparent-png.png", definition: "", answer:"кот", feedback:"Правильно!"},
-  {lang: "en", image: "", definition: "Small pet, meows.", answer: "cat", feedback:"Good!"}
+let DEFAULT_TASKS = [
+  {lang:"ru", image:"https://www.kindpng.com/picc/m/21-214439_cat-png-image-cartoon-cat-png-transparent-png.png", definition:"", answer:"кот", feedback:"Молодец!"},
+  {lang:"en", image:"", definition:"A small pet that meows.", answer:"cat", feedback:"Great!"},
 ];
 
 function fillTableFromArray(arr) {
@@ -70,16 +72,19 @@ function fillTableFromArray(arr) {
   T.innerHTML = '';
   for (let i = 0; i < arr.length; ++i) {
     let row = document.createElement('tr');
+    row.className = 'taskrow';
     row.innerHTML = `
-      <td><select>
-        <option value="ru" ${arr[i].lang==="ru"?"selected":""}>ru</option>
-        <option value="en" ${arr[i].lang==="en"?"selected":""}>en</option>
-      </select></td>
+      <td>
+        <select>
+          <option value="ru" ${arr[i].lang==="ru"?"selected":""}>ru</option>
+          <option value="en" ${arr[i].lang==="en"?"selected":""}>en</option>
+        </select>
+      </td>
       <td><input type="text" value="${arr[i].image??""}" placeholder="URL"></td>
-      <td><textarea rows="2">${arr[i].definition??""}</textarea></td>
+      <td><textarea rows="2" style="resize:vertical;">${arr[i].definition??""}</textarea></td>
       <td><input type="text" value="${arr[i].answer??""}"></td>
       <td><input type="text" value="${arr[i].feedback??""}"></td>
-      <td><button type="button" onclick="this.parentNode.parentNode.remove();">✕</button></td>
+      <td><button type="button" onclick="this.parentNode.parentNode.remove();" class="delbtn">✕</button></td>
     `;
     T.appendChild(row);
   }
@@ -87,16 +92,17 @@ function fillTableFromArray(arr) {
 function addTaskRow() {
   let T = document.getElementById('tasksTbody');
   let row = document.createElement('tr');
+  row.className = 'taskrow';
   row.innerHTML = `<td><select><option value="ru">ru</option><option value="en">en</option></select></td>
   <td><input type="text" value="" placeholder="URL"></td>
   <td><textarea rows="2"></textarea></td>
   <td><input type="text" value=""></td>
   <td><input type="text" value=""></td>
-  <td><button type="button" onclick="this.parentNode.parentNode.remove();">✕</button></td>`
+  <td><button type="button" onclick="this.parentNode.parentNode.remove();" class="delbtn">✕</button></td>`
   T.appendChild(row);
 }
 window.onload = ()=>{ fillTableFromArray(DEFAULT_TASKS); };
-// ===== Генерация JSON настроек ====
+// ===== Собрать JSON настроек ====
 function collectConfig() {
   let bg = document.getElementById('bgColor').value;
   let transparent = document.getElementById('bgTransparent').checked;
@@ -110,23 +116,29 @@ function collectConfig() {
     let ans = tr.children[3].querySelector("input").value.trim();
     let fb  = tr.children[4].querySelector("input").value.trim();
     if ((!img && !def) || !ans) continue;
-    tasks.push({lang: lang, image: img, definition: def, answer: ans, feedback: fb});
+    tasks.push({lang, image:img, definition:def, answer:ans, feedback:fb});
   }
   return {bg, transparent, feedbacks, tasks};
 }
-// ===== Генерация кода IFRAME =====
-function generateGameIframe() {
+
+// ====== Кнопка: скачать игру ======
+function downloadGameHTML() {
   let config = collectConfig();
   let blob = new Blob([buildGameHTML(config)], {type:"text/html"});
   let url = URL.createObjectURL(blob);
-  let code = `<iframe src="${url}" width="800" height="700" style="border:1px solid #bbb;border-radius:16px;" allow="autoplay"></iframe>
-  <br><small>Этот iframe вставьте на Genially или отправьте ученикам.</small>
-  <br><a href="${url}" target="_blank" rel="noopener">Открыть игру отдельной страницей</a> | <a href="${url}" download="dictation_game.html">Скачать чистый HTML</a>
-  `;
-  document.getElementById('result').innerHTML = code;
+  let a = document.createElement('a');
+  a.href = url;
+  a.download = "dictation_game.html";
+  a.textContent = "Скачать готовый HTML-файл игры";
+  // Отдать ссылку, показать preview
+  document.getElementById('result').innerHTML = "";
+  document.getElementById('result').appendChild(a);
+  document.getElementById('result').innerHTML += "<br><br>Откройте этот файл и вставьте на Genially через <b>iframe</b>:<br>";
+  document.getElementById('result').innerHTML +=
+    `<code>&lt;iframe src="ВАШ_СЕРВЕР_ИЛИ_ОБЛАКО/dictation_game.html" width="800" height="700" style="border:1px solid #bbb;border-radius:14px;" allow="autoplay"&gt;&lt;/iframe&gt;</code>`;
+  document.getElementById('result').innerHTML += "<br><br>Готовьте задания — скачивайте игру повторно, если хотите изменить!";
 }
 
-// ======= ПРОСТОЙ "ГЕНЕРАТОР ИГРЫ" (вся игра в 1 html) =======
 function buildGameHTML(config) {
 return `<!DOCTYPE html>
 <html lang="ru">
@@ -339,7 +351,7 @@ function updateProgressRange() {
 }
 document.getElementById("progress-range").addEventListener('input',updateProgressRange);
 renderLevelSelect(); renderMainPage(); updateProgressRange();
-</script>
+<\/script>
 </body>
 </html>`;
 }
