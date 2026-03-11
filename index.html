@@ -2,184 +2,155 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>Редактор интерактивного диктанта — экспорт HTML</title>
+  <title>Редактор для интерактивного диктанта</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <style>
-    body {font-family:sans-serif; margin:40px auto; max-width:720px;}
-    textarea, input[type="text"], input[type="number"] {width:96%;}
-    select{width:96%;}
-    table {width:100%; border-collapse:collapse;margin-top:17px;}
-    th, td {padding:7px 9px; border:1px solid #d4dae8; vertical-align:top;}
-    .optrow {margin-top:14px;}
-    .center {text-align:center;}
-    .taskrow input[type='text'], .taskrow textarea, .taskrow select {width:97%;font-size:16px;}
-    button {padding:7px 14px; border-radius:7px; background:#f2f3fa; border:1.2px solid #bcc1de; font-size:15px;}
-    .taskrow td {font-size: 15px;}
-    .tablezone {overflow-x:auto;}
-    .gray {color:#888;}
-    .preview {border:1.5px solid #e2e2e2; background:#f8faff; margin:20px 0;padding:7px;}
-    .delbtn {background:#ffeded;}
+    body {font-family:sans-serif; max-width:740px; margin:40px auto;}
+    input, textarea, select {font-size:17px; margin:5px;}
+    table {width:100%;border-collapse:collapse;}
+    th, td {border:1px solid #ccc;padding:6px;}
+    button {font-size:14px;margin:4px;}
+    .iframe-code {background:#26252f; color:#cdf; font-size:16px;padding:12px 7px;}
   </style>
 </head>
 <body>
-<h2>Редактор интерактивного диктанта</h2>
-<div class="optrow">
-  <label>Цвет фона: <input type="color" id="bgColor" value="#f7faff"></label>
-  <label style="margin-left:18px;">
-    <input type="checkbox" id="bgTransparent"> Прозрачный фон
-  </label>
-</div>
-<div class="optrow">
-  <label>Фразы обратной связи и прогресса (одна фраза на строку):<br>
-    <textarea id="feedbacks" rows="3">Ещё всё впереди!
-Хороший старт!
-Ты почти у цели!
-Великолепно! Всё получилось!</textarea>
-  </label>
-</div>
-<div class="optrow tablezone">
-  <b>Задания:</b>
-  <button type="button" onclick="addTaskRow()">+ Добавить задание</button>
-  <table>
-    <thead>
-      <tr>
-        <th>Язык</th>
-        <th>Картинка (URL)</th>
-        <th>Дефиниция (описание)</th>
-        <th>Ответ</th>
-        <th>Фидбек</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody id="tasksTbody"></tbody>
-  </table>
-  <span class="gray">У задания может быть либо картинка (указать URL), либо определение (def), либо и то, и другое.</span>
-</div>
-<br>
-<div class="optrow center">
-  <button type="button" onclick="downloadGameHTML()">Скачать игру (HTML)</button>
-</div>
-<div id="result" class="preview"></div>
+<h2>Редактор диктанта — генератор задания для Genially</h2>
+<label>Фон: <input type="color" id="bgcolor" value="#f8fdff"></label><br>
+<label>Фразы прогресса:<br>
+  <textarea id="feedbacks" rows="3" style="width:96%">Отлично!
+Еще чуть-чуть!
+Ты супер!
+Готово!</textarea>
+</label>
+<h3>Задания</h3>
+<table id="tasksT"><thead>
+  <tr><th>Язык</th><th>Картинка URL</th><th>Дефиниция</th><th>Ответ</th><th>Фидбек</th><th>Удалить</th></tr>
+</thead>
+<tbody id="tasksBody"></tbody>
+</table>
+<button onclick="addTask()">+ Добавить задание</button>
+<br><br>
+<button onclick="generateIframe()">Скопировать код для Genially (iframe)</button>
+<div id="iframecode" class="iframe-code" style="word-break:break-all; margin-top:15px;"></div>
 
 <script>
-let DEFAULT_TASKS = [
-  {lang:"ru", image:"https://www.kindpng.com/picc/m/21-214439_cat-png-image-cartoon-cat-png-transparent-png.png", definition:"", answer:"кот", feedback:"Молодец!"},
-  {lang:"en", image:"", definition:"A small pet that meows.", answer:"cat", feedback:"Great!"},
+let tasks = [
+  { lang: "ru", image: "https://www.kindpng.com/picc/m/21-214439_cat-png-image-cartoon-cat-png-transparent-png.png", definition: "", answer: "кот", feedback: "Верно!" },
+  { lang: "en", image: "", definition: "Small pet, meows.", answer: "cat", feedback: "Good!" }
 ];
 
-function fillTableFromArray(arr) {
-  let T = document.getElementById('tasksTbody');
-  T.innerHTML = '';
-  for (let i = 0; i < arr.length; ++i) {
-    let row = document.createElement('tr');
-    row.className = 'taskrow';
-    row.innerHTML = `
-      <td>
-        <select>
-          <option value="ru" ${arr[i].lang==="ru"?"selected":""}>ru</option>
-          <option value="en" ${arr[i].lang==="en"?"selected":""}>en</option>
-        </select>
-      </td>
-      <td><input type="text" value="${arr[i].image??""}" placeholder="URL"></td>
-      <td><textarea rows="2" style="resize:vertical;">${arr[i].definition??""}</textarea></td>
-      <td><input type="text" value="${arr[i].answer??""}"></td>
-      <td><input type="text" value="${arr[i].feedback??""}"></td>
-      <td><button type="button" onclick="this.parentNode.parentNode.remove();" class="delbtn">✕</button></td>
-    `;
-    T.appendChild(row);
+function renderTasks() {
+  let t = "";
+  for(let i=0;i<tasks.length;i++) {
+    t += `<tr>
+      <td><select>${["ru","en"].map(l=>`<option value="${l}"${tasks[i].lang===l?" selected":""}>${l}</option>`).join("")}</select></td>
+      <td><input type="text" value="${tasks[i].image||""}"></td>
+      <td><textarea rows=2>${tasks[i].definition||""}</textarea></td>
+      <td><input type="text" value="${tasks[i].answer||""}"></td>
+      <td><input type="text" value="${tasks[i].feedback||""}"></td>
+      <td><button onclick="deleteTask(${i})">✕</button></td>
+      </tr>`;
+  }
+  document.getElementById('tasksBody').innerHTML = t;
+}
+window.onload = renderTasks;
+function addTask() {
+  tasks.push({ lang: "ru", image: "", definition: "", answer: "", feedback: "" });
+  renderTasks();
+}
+function deleteTask(i) {
+  tasks.splice(i,1);
+  renderTasks();
+}
+function getStateFromForm() {
+  let rows = document.getElementById('tasksBody').children;
+  let t = [];
+  for(let r of rows){
+    let cells = r.children;
+    t.push({
+      lang: cells[0].querySelector("select").value,
+      image: cells[1].querySelector("input").value,
+      definition: cells[2].querySelector("textarea").value,
+      answer: cells[3].querySelector("input").value,
+      feedback: cells[4].querySelector("input").value
+    });
+  }
+  return {
+    bgcolor: document.getElementById("bgcolor").value,
+    feedbacks: document.getElementById("feedbacks").value.split("\n").map(x=>x.trim()).filter(Boolean),
+    tasks: t
   }
 }
-function addTaskRow() {
-  let T = document.getElementById('tasksTbody');
-  let row = document.createElement('tr');
-  row.className = 'taskrow';
-  row.innerHTML = `<td><select><option value="ru">ru</option><option value="en">en</option></select></td>
-  <td><input type="text" value="" placeholder="URL"></td>
-  <td><textarea rows="2"></textarea></td>
-  <td><input type="text" value=""></td>
-  <td><input type="text" value=""></td>
-  <td><button type="button" onclick="this.parentNode.parentNode.remove();" class="delbtn">✕</button></td>`
-  T.appendChild(row);
+function encodeSettings(settings) {
+  return btoa(unescape(encodeURIComponent(JSON.stringify(settings))));
 }
-window.onload = ()=>{ fillTableFromArray(DEFAULT_TASKS); };
-// ===== Собрать JSON настроек ====
-function collectConfig() {
-  let bg = document.getElementById('bgColor').value;
-  let transparent = document.getElementById('bgTransparent').checked;
-  let feedbacks = document.getElementById('feedbacks').value.split('\n').map(v=>v.trim()).filter(v=>v);
-  let tasks = [];
-  let T = document.getElementById('tasksTbody');
-  for (let tr of T.children) {
-    let lang = tr.children[0].querySelector("select").value;
-    let img = tr.children[1].querySelector("input").value.trim();
-    let def = tr.children[2].querySelector("textarea").value.trim();
-    let ans = tr.children[3].querySelector("input").value.trim();
-    let fb  = tr.children[4].querySelector("input").value.trim();
-    if ((!img && !def) || !ans) continue;
-    tasks.push({lang, image:img, definition:def, answer:ans, feedback:fb});
-  }
-  return {bg, transparent, feedbacks, tasks};
+function generateIframe() {
+  let conf = getStateFromForm();
+  let encoded = encodeSettings(conf);
+  // ВАЖНО! Укажите СВОЙ URL игровой страницы:
+  let YOUR_GAME_URL = "https://yourusername.github.io/dictationgame/game.html";
+  let url = `${YOUR_GAME_URL}?data=${encoded}`;
+  let html = `<iframe src="${url}" width="800" height="700" frameborder="0" allow="autoplay"></iframe>`;
+  document.getElementById('iframecode').textContent = html;
+  navigator.clipboard && navigator.clipboard.writeText(html);
 }
-
-// ====== Кнопка: скачать игру ======
-function downloadGameHTML() {
-  let config = collectConfig();
-  let blob = new Blob([buildGameHTML(config)], {type:"text/html"});
-  let url = URL.createObjectURL(blob);
-  let a = document.createElement('a');
-  a.href = url;
-  a.download = "dictation_game.html";
-  a.textContent = "Скачать готовый HTML-файл игры";
-  // Отдать ссылку, показать preview
-  document.getElementById('result').innerHTML = "";
-  document.getElementById('result').appendChild(a);
-  document.getElementById('result').innerHTML += "<br><br>Откройте этот файл и вставьте на Genially через <b>iframe</b>:<br>";
-  document.getElementById('result').innerHTML +=
-    `<code>&lt;iframe src="ВАШ_СЕРВЕР_ИЛИ_ОБЛАКО/dictation_game.html" width="800" height="700" style="border:1px solid #bbb;border-radius:14px;" allow="autoplay"&gt;&lt;/iframe&gt;</code>`;
-  document.getElementById('result').innerHTML += "<br><br>Готовьте задания — скачивайте игру повторно, если хотите изменить!";
-}
-
-function buildGameHTML(config) {
-return `<!DOCTYPE html>
+</script>
+</body>
+</html><!DOCTYPE html>
 <html lang="ru">
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Dictation Game</title>
-<style>
-body{margin:0;font-family:sans-serif;${config.transparent?"background:transparent !important;":"background:"+config.bg+" !important;"}}
-.container{max-width:740px;margin:36px auto 28px auto;padding:18px 0;}
-#main-page{display:flex;flex-wrap:wrap;gap:24px;margin-bottom:26px;justify-content:center;}
-.task-card{background:#fafaff;border-radius:14px;box-shadow:0 1px 8px #d9dbe7;padding:18px;text-align:center;width:144px;min-height:130px;cursor:pointer;position:relative;font-size:17px;transition:opacity .4s;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:150px;}
-.task-card[disabled]{pointer-events:none;opacity:.53;}
-.success-tag{position:absolute;top:8px;left:5px;background:#e0ffd7ee;color:#25702c;font-weight:bold;padding:3px 10px;border-radius:11px;z-index:10;font-size:16px;box-shadow:0 1px 4px #c1e2c1;}
-#task-modal{position:fixed;left:0;top:0;right:0;bottom:0;z-index:999;background:rgba(20,25,42,0.43);display:none;align-items:center;justify-content:center;}
-#task-modal>div{background:#fff;border-radius:14px;min-width:320px;min-height:160px;padding:38px 30px 24px 30px;position:relative;text-align:center;box-shadow:0 2px 24px #b8aaff54;}
-.letters-box{min-height:36px;margin:16px 0 22px 0;}
-.draggable-letter{display:inline-block;background:#e3e6f8;color:#272659;font-size:23px;padding:7px 14px;margin:4px;border-radius:8px;cursor:grab;font-weight:bold;box-shadow:0 0 3px #acaaff60;user-select:none;transition:background .23s;}
-.draggable-letter.drag-over{background:#ffea80;border:2px solid #e0ad00;}
-.letters-box.touch-mode .draggable-letter{cursor:pointer;}
-#progress-bar{margin:22px 0 18px 0;text-align:center;}
-#progress-feedback{margin-left:15px;color:#14914c;font-weight:500;}
-#level-select{margin:0 0 18px 0;text-align:center;}
-#level-select button{margin:0 8px;padding:6px 14px;border-radius:8px;border:1.5px solid #bcc1de;background:#fff;font-size:17px;cursor:pointer;}
-#level-select .selected,#level-select button:hover{background:#e3e6fa;}
-@media(max-width:700px){.container{max-width:99vw;padding:0;}}
-@media(max-width:680px){#task-modal>div{min-width:0;width:92vw;}.task-card{width:46vw;min-width:116px;}}
-</style>
+<head>
+  <meta charset="UTF-8">
+  <title>Диктант — игра</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    body { font-family:sans-serif; margin:0;}
+    .container{max-width:740px;margin:36px auto 28px auto;padding:18px 0;}
+    #main-page{display:flex;flex-wrap:wrap;gap:24px;margin-bottom:26px;justify-content:center;}
+    .task-card{background:#fafaff;border-radius:14px;box-shadow:0 1px 8px #d9dbe7;padding:18px;text-align:center;width:144px;min-height:130px;cursor:pointer;position:relative;font-size:17px;transition:opacity .4s;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:150px;}
+    .task-card[disabled]{pointer-events:none;opacity:.53;}
+    .success-tag{position:absolute;top:8px;left:5px;background:#e0ffd7ee;color:#25702c;font-weight:bold;padding:3px 10px;border-radius:11px;z-index:10;font-size:16px;box-shadow:0 1px 4px #c1e2c1;}
+    #task-modal{position:fixed;left:0;top:0;right:0;bottom:0;z-index:999;background:rgba(20,25,42,0.43);display:none;align-items:center;justify-content:center;}
+    #task-modal>div{background:#fff;border-radius:14px;min-width:320px;min-height:160px;padding:38px 30px 24px 30px;position:relative;text-align:center;box-shadow:0 2px 24px #b8aaff54;}
+    .letters-box{min-height:36px;margin:16px 0 22px 0;}
+    .draggable-letter{display:inline-block;background:#e3e6f8;color:#272659;font-size:23px;padding:7px 14px;margin:4px;border-radius:8px;cursor:grab;font-weight:bold;box-shadow:0 0 3px #acaaff60;user-select:none;transition:background .23s;}
+    .draggable-letter.drag-over{background:#ffea80;border:2px solid #e0ad00;}
+    .letters-box.touch-mode .draggable-letter{cursor:pointer;}
+    #progress-bar{margin:22px 0 18px 0;text-align:center;}
+    #progress-feedback{margin-left:15px;color:#14914c;font-weight:500;}
+    #level-select{margin:0 0 18px 0;text-align:center;}
+    #level-select button{margin:0 8px;padding:6px 14px;border-radius:8px;border:1.5px solid #bcc1de;background:#fff;font-size:17px;cursor:pointer;}
+    #level-select .selected,#level-select button:hover{background:#e3e6fa;}
+    @media(max-width:700px){.container{max-width:99vw;padding:0;}}
+    @media(max-width:680px){#task-modal>div{min-width:0;width:92vw;}.task-card{width:46vw;min-width:116px;}}
+  </style>
+</head>
 <body>
 <div class="container">
   <div id="level-select"></div>
   <div id="main-page"></div>
   <div id="progress-bar">
     <label>Отметь свой прогресс:
-      <input type="range" id="progress-range" min="0" max="${config.tasks.length}" value="0">
+      <input type="range" id="progress-range" min="0" max="1" value="0">
     </label>
     <span id="progress-feedback"></span>
   </div>
 </div>
 <div id="task-modal"></div>
 <script>
-const feedbackPhrases = ${JSON.stringify(config.feedbacks)};
-const dictationTasks = ${JSON.stringify(config.tasks.map((z,i)=>({
+// ===== Декодирование параметров =====
+function getDecodedSettings() {
+  let m = location.search.match(/[?&]data=([A-Za-z0-9+/=._-]+)/);
+  if(!m) { alert("Нет параметра data в ссылке!"); return; }
+  try {
+    let json = decodeURIComponent(escape(window.atob(m[1])));
+    return JSON.parse(json);
+  } catch(e){ alert("Ошибка декодирования настроек: "+e); }
+}
+// ====== Логика игры (ничего не меняйте!) =====
+let SETTINGS = getDecodedSettings();
+if(SETTINGS.bgcolor) document.body.style.background = SETTINGS.bgcolor;
+const feedbackPhrases = SETTINGS.feedbacks;
+const dictationTasks = (SETTINGS.tasks||[]).map((z,i)=>({
   id: i+1,
   language: z.lang,
   type: z.image ? "image":"definition",
@@ -187,21 +158,20 @@ const dictationTasks = ${JSON.stringify(config.tasks.map((z,i)=>({
   definition: z.definition,
   answer: z.answer,
   feedback: z.feedback
-})))};
-
+}));
 let doneTasks = {};
 let currentLang = 'ru';
 let currentLevel = null;
 function renderLevelSelect() {
   const div = document.getElementById('level-select');
-  div.innerHTML = \`<div style="margin-bottom:12px;">
+  div.innerHTML = `<div style="margin-bottom:12px;">
     <span style="font-weight:500;">Выбери уровень:</span>
-    <button id="level-easy" class="\${currentLevel==='easy'?'selected':''}">Лёгкий</button>
-    <button id="level-hard" class="\${currentLevel==='hard'?'selected':''}">Сложный</button>
+    <button id="level-easy" class="${currentLevel==='easy'?'selected':''}">Лёгкий</button>
+    <button id="level-hard" class="${currentLevel==='hard'?'selected':''}">Сложный</button>
     </div>
     <div style="font-size:15px;color:#869;">🟢 <b>Лёгкий</b>: переставить буквы<br>
     🔵 <b>Сложный</b>: вписать слово полностью</div>
-    <div style="margin-top:9px;">
+    <div style="margin-top:14px;">
       <label>Язык:
         <select id="lang-switch">
           <option value="ru">Русский</option>
@@ -209,7 +179,7 @@ function renderLevelSelect() {
         </select>
       </label>
     </div>
-  \`;
+  `;
   document.getElementById('level-easy').onclick = ()=>{currentLevel='easy';renderLevelSelect();renderMainPage();}
   document.getElementById('level-hard').onclick = ()=>{currentLevel='hard';renderLevelSelect();renderMainPage();}
   document.getElementById('lang-switch').value = currentLang;
@@ -246,22 +216,24 @@ function openTask(task) {
   let taskModal = document.createElement('div');
   if(currentLevel==='easy'){
     let shuffled = shuffleLetters(task.answer);
-    taskModal.innerHTML = '<div>Собери слово:</div>\
-    <div class="letters-box" id="letters-box">'+
+    taskModal.innerHTML =
+    `<div>Собери слово:</div>
+    <div class="letters-box" id="letters-box">${
       shuffled.map((letter,i)=>
-        '<span class="draggable-letter" draggable="true" data-index="'+i+'">'+letter+'</span>'
+        `<span class="draggable-letter" draggable="true" data-index="${i}">${letter}</span>`
       ).join('')
-    +'</div>\
-    <button onclick="checkLettersAnswer()" style="margin-bottom:15px;">Проверить</button>\
-    <div id="feedback"></div>\
-    <button onclick="closeTask()" style="margin-top:12px;">Назад</button>';
+    }</div>
+    <button onclick="checkLettersAnswer()" style="margin-bottom:15px;">Проверить</button>
+    <div id="feedback"></div>
+    <button onclick="closeTask()" style="margin-top:12px;">Назад</button>`;
     modal.innerHTML = ''; modal.appendChild(taskModal); enableDragAndDropTouch();
   }else{
-    taskModal.innerHTML = '<div>Введи слово:</div>\
-      <input type="text" id="text-input" autocomplete="off" style="font-size:22px;padding:4px;text-align:center;">\
-      <button onclick="checkTextInput()" style="margin-left:10px;">Проверить</button>\
-      <div id="feedback"></div>\
-      <button onclick="closeTask()" style="display:block;margin:18px auto 0;">Назад</button>';
+    taskModal.innerHTML =
+      `<div>Введи слово:</div>
+      <input type="text" id="text-input" autocomplete="off" style="font-size:22px;padding:4px;text-align:center;">
+      <button onclick="checkTextInput()" style="margin-left:10px;">Проверить</button>
+      <div id="feedback"></div>
+      <button onclick="closeTask()" style="display:block;margin:18px auto 0;">Назад</button>`;
     modal.innerHTML = ''; modal.appendChild(taskModal);
     setTimeout(()=>document.getElementById('text-input').focus(), 100);
   }
@@ -351,10 +323,6 @@ function updateProgressRange() {
 }
 document.getElementById("progress-range").addEventListener('input',updateProgressRange);
 renderLevelSelect(); renderMainPage(); updateProgressRange();
-<\/script>
-</body>
-</html>`;
-}
 </script>
 </body>
 </html>
